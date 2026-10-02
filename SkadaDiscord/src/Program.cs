@@ -24,7 +24,7 @@ namespace SkadaDiscord
 {
     public static class AppInfo
     {
-        public const string Version = "2.4.2";
+        public const string Version = "2.4.3";
         public const string Short = "2.4";   // для подписи на картинке
         public const string Author = "Leanca Vladimir";
         public const string DiscordName = "lyanka_v";

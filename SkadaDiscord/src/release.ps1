@@ -13,6 +13,9 @@ $prog = Join-Path $root 'SkadaDiscord'
 $version = (Get-Item $Exe).VersionInfo.FileVersion
 if (-not $version) { throw "у $Exe нет версии" }
 $version = ([version]$version).ToString(3)
+# версия аддона (## Version в .toc) должна совпадать с программой - её видно в игре
+$tocVersion = (Select-String -Path (Join-Path $addon 'SkadaDiscord.toc') -Pattern '^## Version:\s*(\S+)').Matches[0].Groups[1].Value
+if ($tocVersion -ne $version) { throw "версия аддона в SkadaDiscord.toc ($tocVersion) не совпадает с программой ($version)" }
 
 New-Item -ItemType Directory -Force $Out | Out-Null
 $zipPath = Join-Path $Out "SkadaDiscord-$version.zip"
