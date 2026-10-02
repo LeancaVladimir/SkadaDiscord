@@ -29,7 +29,7 @@ const SELF_URL = "https://skadadiscord.leancavladimir.workers.dev";
 const GITHUB_URL = "https://github.com/LeancaVladimir/SkadaDiscord";
 const AUTHOR = "Leanca Vladimir";
 const CONTACT = "lyanka_v";
-const SETUP_VERSION = 2; // увеличить, чтобы /v1/setup обновил сообщения и роли
+const SETUP_VERSION = 3; // увеличить, чтобы /v1/setup обновил сообщения и роли
 const RATE_PER_MINUTE = 60;
 const CLAIM_TTL_DAYS = 30;
 const ACCENT = 0x5865f2;
@@ -317,7 +317,7 @@ const INFO = [
   {
     key: "welcome", name: "👋・добро-пожаловать",
     embeds: () => [{
-      title: "DB Circle x100 — база рейдовых отчётов",
+      title: "Летопись Circle — база рейдовых отчётов",
       color: ACCENT,
       description:
         "Здесь собираются отчёты **Skada** по убийствам боссов на WoW Circle x100: урон, исцеление, место каждого игрока.\n\n" +
