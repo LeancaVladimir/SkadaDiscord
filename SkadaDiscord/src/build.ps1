@@ -66,6 +66,6 @@ $files = Get-ChildItem $src -Filter *.cs | ForEach-Object { $_.FullName }
 $exe = Join-Path $out 'SkadaDiscord.exe'
 & $csc /nologo /target:winexe /optimize+ /codepage:65001 "/out:$exe" "/win32icon:$icoPath" `
     /r:System.dll /r:System.Core.dll /r:System.Drawing.dll /r:System.Windows.Forms.dll `
-    /r:System.Web.Extensions.dll /r:System.Net.Http.dll $files
+    /r:System.Web.Extensions.dll /r:System.Net.Http.dll /r:System.IO.Compression.dll /r:System.IO.Compression.FileSystem.dll $files
 if ($LASTEXITCODE -ne 0) { throw "ошибка компиляции" }
 Write-Host "Готово: $exe"

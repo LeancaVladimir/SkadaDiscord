@@ -67,15 +67,8 @@ namespace SkadaDiscord
 
             for (int attempt = 1; attempt <= 5; attempt++)
             {
-                using (var form = new MultipartFormDataContent())
+                using (var form = WebhookForm(payload, png))
                 {
-                    form.Add(new StringContent(payload, Encoding.UTF8, "application/json"), "payload_json");
-                    if (png != null)
-                    {
-                        var file = new ByteArrayContent(png);
-                        file.Headers.ContentType = MediaTypeHeaderValue.Parse("image/png");
-                        form.Add(file, "files[0]", "skada.png");
-                    }
                     var resp = Client.PostAsync(webhook, form).Result;
                     var body = resp.Content.ReadAsStringAsync().Result;
                     if (resp.IsSuccessStatusCode) return;
@@ -91,6 +84,30 @@ namespace SkadaDiscord
                 }
             }
             throw new Exception("Discord не принял сообщение (лимит запросов)");
+        }
+
+        // часть multipart/form-data с именем в кавычках: name="..." (и filename="...").
+        // form.Add(content, name) пишет name=meta без кавычек - FormData в Cloudflare Workers такое не принимает
+        public static void AddPart(MultipartFormDataContent form, HttpContent content, string name, string fileName)
+        {
+            var cd = new ContentDispositionHeaderValue("form-data") { Name = "\"" + name + "\"" };
+            if (fileName != null) cd.FileName = "\"" + fileName + "\"";
+            content.Headers.ContentDisposition = cd;
+            form.Add(content);
+        }
+
+        // сообщение вебхука: payload_json и картинка
+        public static MultipartFormDataContent WebhookForm(string payload, byte[] png)
+        {
+            var form = new MultipartFormDataContent();
+            AddPart(form, new StringContent(payload, Encoding.UTF8, "application/json"), "payload_json", null);
+            if (png != null)
+            {
+                var file = new ByteArrayContent(png);
+                file.Headers.ContentType = MediaTypeHeaderValue.Parse("image/png");
+                AddPart(form, file, "files[0]", "skada.png");
+            }
+            return form;
         }
 
         // payload_json сообщения

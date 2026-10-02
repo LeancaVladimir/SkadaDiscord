@@ -238,6 +238,7 @@ namespace SkadaDiscord
         public string WowExe = "Wow.exe";
         public int PollSeconds = 2;
         public bool ExitWithGame = true;
+        public bool AutoUpdate = true; // ставить новые версии с GitHub самой (false - спрашивать)
 
         // старые настройки отчётов (до 2.2 они редактировались в программе) - запасной вариант и перенос в игру
         public string Username = "Skada";
@@ -347,6 +348,7 @@ namespace SkadaDiscord
             c.WowExe = Json.Str(root, "wowExe", "Wow.exe");
             c.PollSeconds = (int)Json.Num(root, "pollSeconds", 2);
             c.ExitWithGame = Json.Bool(root, "exitWithGame", true);
+            c.AutoUpdate = Json.Bool(root, "autoUpdate", true);
             c.Username = Json.Str(root, "username", "Skada");
             c.Scale = Json.Num(root, "scale", 1.5);
             c.TimerSeconds = (int)Json.Num(root, "timerSeconds", 300);
@@ -376,6 +378,7 @@ namespace SkadaDiscord
             d.Add("wowExe", WowExe);
             d.Add("pollSeconds", PollSeconds);
             d.Add("exitWithGame", ExitWithGame);
+            d.Add("autoUpdate", AutoUpdate);
             if (Channels.Count > 0 || Instances.Count > 0)
             {
                 // старые настройки отчётов храним, пока они не перенесены в игру (запасной вариант)

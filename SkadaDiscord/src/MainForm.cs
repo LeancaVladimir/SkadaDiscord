@@ -13,6 +13,7 @@ namespace SkadaDiscord
     public class MainForm : Form
     {
         readonly Engine engine;
+        readonly Updater updater; // null - без автообновления (снимки)
         readonly string configPath;
         AppConfig cfg; // редактируемая копия, в работу уходит после "Сохранить"
         bool dirty, loading;
@@ -24,7 +25,9 @@ namespace SkadaDiscord
 
         // Программа
         TextBox wowPath, wowExe;
-        CheckBox exitWithGame;
+        CheckBox exitWithGame, autoUpdate;
+        Button checkUpdates;
+        Label updateStatus;
 
         // О программе
         Label gameStatus;
@@ -32,9 +35,12 @@ namespace SkadaDiscord
         // Журнал
         RichTextBox logBox;
 
-        public MainForm(Engine engine, string configPath)
+        public MainForm(Engine engine, string configPath) : this(engine, configPath, null) { }
+
+        public MainForm(Engine engine, string configPath, Updater updater)
         {
             this.engine = engine;
+            this.updater = updater;
             this.configPath = configPath;
             cfg = engine.Config.Clone();
 
@@ -204,8 +210,23 @@ namespace SkadaDiscord
             exitWithGame = Theme.Check("закрываться вместе с игрой (при запуске через «Играть»)", true);
             row("Закрытие", exitWithGame);
 
+            var version = Theme.Label(AppInfo.Version, null, Color.White);
+            row("Версия программы", version);
+            version.Margin = new Padding(0, 8, 0, 8);
+            autoUpdate = Theme.Check("Обновлять автоматически (тихо)", true);
+            row("Обновления", autoUpdate);
+            var updateRow = Theme.Row();
+            checkUpdates = Theme.Button("Проверить обновления", false);
+            checkUpdates.Click += (s, e) => CheckUpdates();
+            updateStatus = Theme.Label("", Theme.Small, Theme.Muted);
+            updateStatus.Margin = new Padding(6, 7, 0, 0);
+            updateRow.Controls.Add(checkUpdates);
+            updateRow.Controls.Add(updateStatus);
+            row("", updateRow);
+
             foreach (var c in new Control[] { wowPath, wowExe }) c.TextChanged += (s, e) => MarkDirty();
             exitWithGame.CheckedChanged += (s, e) => MarkDirty();
+            autoUpdate.CheckedChanged += (s, e) => MarkDirty();
 
             var actions = Theme.Row();
             actions.Dock = DockStyle.Top;
@@ -218,7 +239,9 @@ namespace SkadaDiscord
 
             var how = Theme.Label(
                 "• Ярлык «Играть» запускает WoW вместе с этой программой (она сидит в трее, у часов).\n" +
-                "• Папка игры определяется сама, если программа лежит в папке SkadaDiscord внутри папки игры.", Theme.Small, Theme.Muted);
+                "• Папка игры определяется сама, если программа лежит в папке SkadaDiscord внутри папки игры.\n" +
+                "• Обновления (программа и аддон) берутся с GitHub и ставятся, только когда игра закрыта.\n" +
+                "   Без галочки «Обновлять автоматически» программа сначала покажет, что нового, и спросит.", Theme.Small, Theme.Muted);
             how.Dock = DockStyle.Top;
             how.Padding = new Padding(0, 18, 0, 0);
 
@@ -232,6 +255,7 @@ namespace SkadaDiscord
             wowPath.Text = cfg.WowPath;
             wowExe.Text = cfg.WowExe;
             exitWithGame.Checked = cfg.ExitWithGame;
+            autoUpdate.Checked = cfg.AutoUpdate;
             loading = false;
         }
 
@@ -240,6 +264,59 @@ namespace SkadaDiscord
             cfg.WowPath = wowPath.Text.Trim();
             cfg.WowExe = wowExe.Text.Trim() == "" ? "Wow.exe" : wowExe.Text.Trim();
             cfg.ExitWithGame = exitWithGame.Checked;
+            cfg.AutoUpdate = autoUpdate.Checked;
+        }
+
+        // кнопка «Проверить обновления»
+        void CheckUpdates()
+        {
+            checkUpdates.Enabled = false;
+            updateStatus.ForeColor = Theme.Muted;
+            updateStatus.Text = "Проверяю…";
+            var t = new System.Threading.Thread(() =>
+            {
+                ReleaseInfo r = null;
+                Exception err = null;
+                try { r = Updater.FetchLatest(); } catch (Exception e) { err = e; }
+                try { BeginInvoke(new Action(() => ShowUpdateResult(r, err))); } catch { }
+            }) { IsBackground = true };
+            t.Start();
+        }
+
+        void ShowUpdateResult(ReleaseInfo r, Exception err)
+        {
+            checkUpdates.Enabled = true;
+            var current = Updater.Current;
+            if (err != null)
+            {
+                updateStatus.ForeColor = Theme.Red;
+                updateStatus.Text = "Не удалось проверить: " + Updater.Message(err);
+            }
+            else if (r == null)
+            {
+                updateStatus.ForeColor = Theme.Muted;
+                updateStatus.Text = "Релизов пока нет. У вас версия " + Updater.VersionText(current) + ".";
+            }
+            else if (r.Version == null || !Updater.IsNewer(r.Version, current))
+            {
+                updateStatus.ForeColor = Theme.Green;
+                updateStatus.Text = "У вас последняя версия (" + Updater.VersionText(current) + ").";
+            }
+            else
+            {
+                updateStatus.ForeColor = Theme.Yellow;
+                updateStatus.Text = "Доступна версия " + Updater.VersionText(r.Version) + ".";
+                if (updater != null) updater.Offer(r, this);
+            }
+        }
+
+        public bool IsDirty { get { return dirty; } }
+
+        // программа перезапускается новой версией: закрыть без вопросов (несохранённых изменений нет - это проверено)
+        public void CloseForUpdate()
+        {
+            dirty = false;
+            Close();
         }
 
         void CreatePlayShortcut()
@@ -285,7 +362,8 @@ namespace SkadaDiscord
                 "• Защита от дублей: если у нескольких игроков рейда одинаковое окно ведёт в один вебхук,\n" +
                 "   оно отправится один раз. Убийства уходят и в общую базу данных (один бой — один отчёт),\n" +
                 "   это выключается в игре: /sd → «Настройки» → «Общие».\n" +
-                "• Здесь, в программе, остались только папка игры, ярлык «Играть» и журнал отправки.", Theme.Font, Theme.Text);
+                "• Здесь, в программе, остались только папка игры, ярлык «Играть», обновления и журнал отправки.\n" +
+                "• Новые версии программы и аддона ставятся сами (когда игра закрыта) — страница «Программа».", Theme.Font, Theme.Text);
             how.Margin = new Padding(0, 0, 0, 0);
 
             var nowTitle = Theme.Label("Сейчас", Theme.Bold, Color.White);

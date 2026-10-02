@@ -134,6 +134,27 @@ namespace SkadaDiscord
             return r;
         }
 
+        // тело запроса /v1/report (имена частей - в кавычках, см. Discord.AddPart)
+        public static MultipartFormDataContent ReportForm(string metaJson, string payloadJson, byte[] png, string reportJson)
+        {
+            var form = new MultipartFormDataContent();
+            Discord.AddPart(form, new StringContent(metaJson, Encoding.UTF8, "application/json"), "meta", null);
+            Discord.AddPart(form, new StringContent(payloadJson, Encoding.UTF8, "application/json"), "payload_json", null);
+            if (png != null)
+            {
+                var file = new ByteArrayContent(png);
+                file.Headers.ContentType = MediaTypeHeaderValue.Parse("image/png");
+                Discord.AddPart(form, file, "files[0]", "skada.png");
+            }
+            if (!string.IsNullOrEmpty(reportJson))
+            {
+                var json = new ByteArrayContent(new UTF8Encoding(false).GetBytes(reportJson));
+                json.Headers.ContentType = MediaTypeHeaderValue.Parse("application/json");
+                Discord.AddPart(form, json, "files[1]", "report.json");
+            }
+            return form;
+        }
+
         // отчёт в базу данных: meta (JSON), сообщение Discord, картинка и сам отчёт
         public static RelayResult SendReport(string metaJson, string payloadJson, byte[] png, string reportJson)
         {
@@ -149,22 +170,8 @@ namespace SkadaDiscord
 
             for (int attempt = 1; attempt <= 3; attempt++)
             {
-                using (var form = new MultipartFormDataContent())
+                using (var form = ReportForm(metaJson, payloadJson, png, reportJson))
                 {
-                    form.Add(new StringContent(metaJson, Encoding.UTF8, "application/json"), "meta");
-                    form.Add(new StringContent(payloadJson, Encoding.UTF8, "application/json"), "payload_json");
-                    if (png != null)
-                    {
-                        var file = new ByteArrayContent(png);
-                        file.Headers.ContentType = MediaTypeHeaderValue.Parse("image/png");
-                        form.Add(file, "files[0]", "skada.png");
-                    }
-                    if (!string.IsNullOrEmpty(reportJson))
-                    {
-                        var json = new ByteArrayContent(new UTF8Encoding(false).GetBytes(reportJson));
-                        json.Headers.ContentType = MediaTypeHeaderValue.Parse("application/json");
-                        form.Add(json, "files[1]", "report.json");
-                    }
                     int code;
                     var text = Send("/v1/report", form, 90, out code);
                     if (code == 429 && attempt < 3)

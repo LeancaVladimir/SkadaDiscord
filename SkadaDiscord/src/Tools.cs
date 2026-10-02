@@ -4,6 +4,8 @@
 //   --snapshot <папка>            сохранить снимки окна программы и картинки отчётов из reports\
 //   --check <папка> [файл .lua]   проверка без отправки: какие сообщения ушли бы, их текст для поиска и payload
 //                                 (настройки - из указанного SavedVariables, иначе из игры / config.json)
+//   --check-update [download]     что видит автообновление (релиз, архив, SHA256) - в журнал, без установки;
+//                                 download - ещё скачать архив во временную папку, проверить SHA256 и распаковать
 using System;
 using System.Collections.Generic;
 using System.Drawing;
@@ -21,7 +23,7 @@ namespace SkadaDiscord
         {
             if (args.Length == 0) return false;
             var mode = args[0];
-            if (mode != "--migrate" && mode != "--search-test" && mode != "--snapshot" && mode != "--check") return false;
+            if (mode != "--migrate" && mode != "--search-test" && mode != "--snapshot" && mode != "--check" && mode != "--check-update") return false;
 
             var config = AppConfig.Load(Path.Combine(appDir, "config.json"));
             var engine = new Engine(appDir, config);
@@ -73,6 +75,14 @@ namespace SkadaDiscord
                     form.Show();
                     form.Snapshot(dir);
                     form.Close();
+                    // окна обновления
+                    var sample = "## Что нового\n- **Автообновление** программы и аддона\n- Исправлена отправка в базу данных\n\nSHA256: " + new string('0', 64);
+                    Shot(new UpdateForm("Доступна версия 9.9.9", "Сейчас у вас " + AppInfo.Version + ". Обновятся программа и аддон (игра должна быть закрыта). Что нового:", Updater.MarkdownToText(sample), true), Path.Combine(dir, "update_offer.png"));
+                    Shot(new UpdateForm("SkadaDiscord обновлён до " + AppInfo.Version, "Предыдущая версия: 2.3.0. Что нового:", Updater.MarkdownToText(sample), false), Path.Combine(dir, "update_done.png"));
+                }
+                else if (mode == "--check-update")
+                {
+                    CheckUpdate(engine, args.Length > 1 && args[1] == "download");
                 }
                 else if (mode == "--check")
                 {
@@ -84,6 +94,58 @@ namespace SkadaDiscord
                 engine.Log("Ошибка (" + mode + "): " + e.Message, LogKind.Error);
             }
             return true;
+        }
+
+        static void Shot(Form f, string path)
+        {
+            f.StartPosition = FormStartPosition.Manual;
+            f.Location = new Point(-4000, -4000);
+            f.ShowInTaskbar = false;
+            f.Show();
+            Application.DoEvents();
+            using (var bmp = new Bitmap(f.Width, f.Height))
+            {
+                f.DrawToBitmap(bmp, new Rectangle(0, 0, f.Width, f.Height));
+                bmp.Save(path);
+            }
+            f.Close();
+        }
+
+        // что видит автообновление - без установки
+        static void CheckUpdate(Engine engine, bool download)
+        {
+            var current = Updater.Current;
+            var r = Updater.FetchLatest();
+            if (r == null)
+            {
+                engine.Log("Проверка обновлений: версия " + Updater.VersionText(current) + ", релизов пока нет.", LogKind.Info);
+                return;
+            }
+            var sb = new StringBuilder("Проверка обновлений: версия " + Updater.VersionText(current) + "; последний релиз " + r.Tag);
+            if (r.Version == null) sb.Append(" (тег не похож на версию - пропускается)");
+            else sb.Append(Updater.IsNewer(r.Version, current) ? " - новее, будет установлен" : " - не новее, ничего не делается");
+            sb.Append("; архив: " + (r.AssetName == "" ? "НЕТ .zip" : r.AssetName + " (" + r.AssetSize + " байт), ссылка " +
+                (Updater.IsAllowedUrl(r.AssetUrl) ? "допустима" : "НЕДОПУСТИМА: " + r.AssetUrl)));
+            sb.Append("; SHA256 в описании: " + (r.Sha256 ?? "НЕТ - установка будет отклонена"));
+            sb.Append("; игра запущена: " + (Updater.WowRunning(engine.Config) ? "да" : "нет"));
+            sb.Append("; автообновление: " + (engine.Config.AutoUpdate ? "включено" : "выключено (спросит)"));
+            sb.Append("; изменения: " + Updater.MarkdownToText(r.Body).Replace("\n", " / "));
+            engine.Log(sb.ToString(), LogKind.Info);
+            if (!download) return;
+
+            var dir = Path.Combine(Path.GetTempPath(), @"SkadaDiscord-update\check");
+            var zip = Updater.Download(r, dir);
+            var files = Updater.ExtractZip(zip, Path.Combine(dir, "files"));
+            var list = Directory.GetFiles(files, "*", SearchOption.AllDirectories).Select(f => f.Substring(files.Length).TrimStart('\\').Replace('\\', '/')).ToList();
+            var exe = Path.Combine(files, @"SkadaDiscord\SkadaDiscord.exe");
+            string exeVersion = "нет";
+            if (File.Exists(exe))
+            {
+                try { exeVersion = Updater.VersionText(Updater.Normalize(System.Reflection.AssemblyName.GetAssemblyName(exe).Version)); }
+                catch (Exception e) { exeVersion = "не прочитана (" + e.Message + ")"; }
+            }
+            engine.Log("Проверка обновлений: архив скачан, SHA256 совпадает: " + zip + "; версия exe в архиве: " + exeVersion +
+                "; файлов " + list.Count + ": " + string.Join(", ", list), LogKind.Ok);
         }
 
         static string Safe(string s)

@@ -39,7 +39,9 @@ namespace SkadaDiscord
         readonly HashSet<string> sent = new HashSet<string>();
         readonly Dictionary<string, DateTime> seen = new Dictionary<string, DateTime>();
         readonly Dictionary<string, DateTime> retryAt = new Dictionary<string, DateTime>();
+        readonly Dictionary<string, int> failures = new Dictionary<string, int>(); // неудачные попытки по ключу отправки
         readonly object sync = new object();
+        public const int MaxAttempts = 3; // после стольких неудач отправка пропускается (<ключ>|failed в sent.txt)
         Thread thread;
         volatile bool running;
         readonly AutoResetEvent wake = new AutoResetEvent(false);
@@ -137,6 +139,15 @@ namespace SkadaDiscord
         }
 
         public void PollNow() { wake.Set(); }
+
+        // обновление программы: дождаться конца текущей отправки и не начинать новых (до UnlockForUpdate или выхода).
+        // освобождать - в том же потоке
+        public bool TryLockForUpdate(int timeoutMs) { return Monitor.TryEnter(sync, timeoutMs); }
+
+        public void UnlockForUpdate()
+        {
+            if (Monitor.IsEntered(sync)) Monitor.Exit(sync);
+        }
 
         void Loop()
         {
@@ -374,9 +385,8 @@ namespace SkadaDiscord
                             }
                             catch (Exception e)
                             {
-                                ok = false;
                                 ReleaseClaims(claimed);
-                                Log(string.Format("Не отправлено: {0} → {1}: картинка не нарисована ({2})", r.Boss, where, e.Message), LogKind.Error);
+                                if (!Failed(key, r.Boss + " → " + where, "картинка не нарисована (" + e.Message + ")")) ok = false;
                                 continue;
                             }
                         }
@@ -393,10 +403,9 @@ namespace SkadaDiscord
                         }
                         catch (Exception e)
                         {
-                            ok = false;
                             ReleaseClaims(claimed); // пусть отправит другой игрок или мы при повторе
                             if (sent.Add(key + "|retry")) AppendSent(key + "|retry"); // эту ссылку повторим и после перезапуска
-                            Log(string.Format("Не отправлено: {0} → {1}: {2}", r.Boss, where, e.InnerException != null ? e.InnerException.Message : e.Message), LogKind.Error);
+                            if (!Failed(key, r.Boss + " → " + where, e.InnerException != null ? e.InnerException.Message : e.Message)) ok = false;
                         }
                     }
                 }
@@ -440,7 +449,7 @@ namespace SkadaDiscord
             foreach (var h in hooks)
             {
                 var key = HookKey(r, ch, h);
-                if (sent.Contains(key)) continue;
+                if (sent.Contains(key) || sent.Contains(key + "|failed")) continue; // отправлено / попытки кончились
                 // отчёт уже ушёл в другие ссылки канала: повторяем только неудачные,
                 // а ссылки, добавленные позже, старые отчёты не получают
                 if (any && !sent.Contains(key + "|retry")) continue;
@@ -452,6 +461,24 @@ namespace SkadaDiscord
         void AppendSent(string key)
         {
             try { File.AppendAllText(Path.Combine(AppDir, "sent.txt"), key + "\r\n", Encoding.UTF8); } catch { }
+        }
+
+        // неудачная попытка отправки (ключ отправки, "босс → куда", ошибка).
+        // true - это была последняя попытка: больше не повторяем (и после перезапуска - <ключ>|failed в sent.txt)
+        bool Failed(string key, string what, string error)
+        {
+            int n;
+            failures.TryGetValue(key, out n);
+            failures[key] = ++n;
+            if (n < MaxAttempts)
+            {
+                Log(string.Format("Не отправлено: {0}: {1} (попытка {2} из {3})", what, error, n, MaxAttempts), LogKind.Error);
+                return false;
+            }
+            failures.Remove(key);
+            if (sent.Add(key + "|failed")) AppendSent(key + "|failed");
+            Log(string.Format("Не отправлено после {0} попыток: {1}: {2}. Пропускаю.", MaxAttempts, what, error), LogKind.Error);
+            return true;
         }
 
         // ---------------------------------------------------------------------
@@ -608,7 +635,7 @@ namespace SkadaDiscord
         {
             if (!WantsDb(r, game)) return true;
             var key = r.Id + "|db";
-            if (sent.Contains(key)) return true;
+            if (sent.Contains(key) || sent.Contains(key + "|failed")) return true;
             try
             {
                 var job = DbJob(r);
@@ -629,8 +656,7 @@ namespace SkadaDiscord
             }
             catch (Exception e)
             {
-                Log(string.Format("Не отправлено в базу данных: {0}: {1}", r.Boss, e.InnerException != null ? e.InnerException.Message : e.Message), LogKind.Error);
-                return false;
+                return Failed(key, r.Boss + " → база данных", e.InnerException != null ? e.InnerException.Message : e.Message);
             }
         }
 
