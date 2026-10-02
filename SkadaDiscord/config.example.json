@@ -1,0 +1,7 @@
+{
+  "version": 3,
+  "wowPath": "",
+  "wowExe": "Wow.exe",
+  "pollSeconds": 2,
+  "exitWithGame": true
+}
