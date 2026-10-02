@@ -1,0 +1,11 @@
+# личные файлы программы (ссылки-вебхуки, журнал, кэш отчётов)
+SkadaDiscord/config.json
+SkadaDiscord/sent.txt
+SkadaDiscord/log.txt
+SkadaDiscord/reports/
+SkadaDiscord/snapshot/
+SkadaDiscord/*.tmp
+
+# сборка
+SkadaDiscord/SkadaDiscord.exe
+SkadaDiscord/src/app.ico
