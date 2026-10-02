@@ -1,0 +1,16 @@
+## Interface: 30300
+## Title: Skada: |cff7289daDiscord|r
+## Notes: Saves boss kill reports for the SkadaDiscord program, which posts them to Discord.
+## Notes-ruRU: Сохраняет отчёты по убийствам боссов для программы SkadaDiscord (отправка в Discord).
+## Author: Leanca Vladimir (Discord: lyanka_v)
+## Dependencies: Skada
+## OptionalDeps: DBM-Core
+## SavedVariables: SkadaDiscordDB
+## Version: 2.3.0
+
+Config.lua
+Profile.lua
+SkadaDiscord.lua
+Timer.lua
+Options.lua
+UI.lua
