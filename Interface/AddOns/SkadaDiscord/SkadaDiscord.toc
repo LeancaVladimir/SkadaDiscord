@@ -6,7 +6,7 @@
 ## Dependencies: Skada
 ## OptionalDeps: DBM-Core
 ## SavedVariables: SkadaDiscordDB
-## Version: 2.3.0
+## Version: 2.4.3
 
 Config.lua
 Profile.lua
