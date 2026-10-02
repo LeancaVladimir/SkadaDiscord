@@ -1,7 +1,8 @@
 // Служебные режимы запуска (без окна):
 //   --migrate                     перенести старые настройки из config.json в игру (Config.lua аддона, один раз)
 //   --search-test [босс]          отправить в канал "Тест" три варианта текста для поиска
-//   --snapshot <папка>            сохранить снимки окна программы и картинки отчётов из reports\
+//   --db-test [босс]              отправить в базу данных последний отчёт из файла игры (заново: без учёта sent.txt и защиты от дублей)
+//   --snapshot <папка>           сохранить снимки окна программы и картинки отчётов из reports\
 //   --check <папка> [файл .lua]   проверка без отправки: какие сообщения ушли бы, их текст для поиска и payload
 //                                 (настройки - из указанного SavedVariables, иначе из игры / config.json)
 //   --check-update [download]     что видит автообновление (релиз, архив, SHA256) - в журнал, без установки;
@@ -23,7 +24,7 @@ namespace SkadaDiscord
         {
             if (args.Length == 0) return false;
             var mode = args[0];
-            if (mode != "--migrate" && mode != "--search-test" && mode != "--snapshot" && mode != "--check" && mode != "--check-update") return false;
+            if (mode != "--migrate" && mode != "--search-test" && mode != "--db-test" && mode != "--snapshot" && mode != "--check" && mode != "--check-update") return false;
 
             var config = AppConfig.Load(Path.Combine(appDir, "config.json"));
             var engine = new Engine(appDir, config);
@@ -50,6 +51,10 @@ namespace SkadaDiscord
                     if (r == null) throw new Exception("нет отчётов в reports\\");
                     engine.SendSearchTest(game, ch, r);
                     engine.Log("Тест поиска отправлен в #Тест (" + r.Boss + ").", LogKind.Ok);
+                }
+                else if (mode == "--db-test")
+                {
+                    engine.ResendToDb(args.Length > 1 ? args[1] : null);
                 }
                 else if (mode == "--snapshot")
                 {

@@ -110,11 +110,18 @@ namespace SkadaDiscord
             return form;
         }
 
+        // Discord не принимает имя вебхука со словом "discord" (ошибка 400) - вырезаем его
+        public static string SafeUsername(string username)
+        {
+            var name = Regex.Replace(username ?? "", "discord", "", RegexOptions.IgnoreCase).Trim();
+            return name == "" ? "Skada" : name;
+        }
+
         // payload_json сообщения
         public static string Payload(string username, string content, string embedJson, byte[] png, string alt)
         {
             var sb = new StringBuilder("{\"username\":");
-            Json.WriteString(sb, string.IsNullOrEmpty(username) ? "Skada" : username);
+            Json.WriteString(sb, SafeUsername(username));
             if (!string.IsNullOrEmpty(content))
             {
                 sb.Append(",\"content\":");

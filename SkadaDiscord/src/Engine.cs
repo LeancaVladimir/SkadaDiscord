@@ -630,6 +630,27 @@ namespace SkadaDiscord
             return Compose(r, blocks, blocks);
         }
 
+        // для --db-test: последний отчёт из SavedVariables (boss - необязательно) ещё раз в базу, не глядя в sent.txt
+        public void ResendToDb(string boss)
+        {
+            var game = CurrentGame();
+            ReportData last = null;
+            foreach (var file in SavedVariablesFiles())
+                foreach (var raw in ExtractReports(ReadText(file) ?? ""))
+                {
+                    ReportData r;
+                    try { r = ReportData.Parse(raw); } catch { continue; }
+                    if ((boss == null || r.Boss == boss) && WantsDb(r, game) && (last == null || r.Start > last.Start)) last = r;
+                }
+            if (last == null) throw new Exception("в файле игры нет отчёта для базы" + (boss != null ? " по боссу " + boss : ""));
+            Log("Проверка базы: отправляю " + last.Boss + " (" + Calc.DiffName(last.Diff) + ")", LogKind.Info);
+            sent.Remove(last.Id + "|db");
+            sent.Remove(last.Id + "|db|failed");
+            var key = last.FightKey();
+            Relay.Release(new[] { "db:" + (key.Length > 250 ? key.Substring(0, 250) : key) }); // иначе сервер ответит "уже в базе"
+            SendToDb(last, game);
+        }
+
         // false - не отправлено (повторим позже)
         bool SendToDb(ReportData r, GameConfig game)
         {
@@ -642,7 +663,7 @@ namespace SkadaDiscord
                 var png = Renderer.Render(job, FontPath, IconsPath, DbScale);
                 string content, embed, alt;
                 Message(r, job, "alt", null, out content, out embed, out alt);
-                var payload = Discord.Payload("SkadaDiscord", content, embed, png, alt);
+                var payload = Discord.Payload("Skada", content, embed, png, alt);
                 var res = Relay.SendReport(DbMeta(r, game), payload, png, r.Raw);
                 if (sent.Add(key)) AppendSent(key);
                 if (res.Status == "duplicate")
