@@ -3,5 +3,6 @@
   "wowPath": "",
   "wowExe": "Wow.exe",
   "pollSeconds": 2,
-  "exitWithGame": true
+  "exitWithGame": true,
+  "autoUpdate": true
 }
